@@ -1,134 +1,126 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import {
+	App,
+	Editor,
+	MarkdownView,
+	Notice,
+	Plugin,
+	PluginSettingTab,
+	Setting,
+	TAbstractFile,
+	TFile,
+} from "obsidian";
+import * as path from "path";
 
 // Remember to rename these classes and interfaces!
 
-interface MyPluginSettings {
-	mySetting: string;
+interface MoveWithTagsSettings {
+	targetMapping: Map<string, string>;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
+const DEFAULT_SETTINGS: MoveWithTagsSettings = {
+	targetMapping: new Map<string, string>([
+		["projects", "1. Projects"],
+		["areas", "2. Areas"],
+		["resources", "3. Resources"],
+		["archive", "4. Archive"],
+	]),
+};
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class MoveWithTags extends Plugin {
+	settings: MoveWithTagsSettings;
 
 	async onload() {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
-
 		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
 		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
+		statusBarItemEl.setText("Move with tags");
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-			}
+		const { targetMapping } = this.settings;
+		targetMapping.forEach((value: string, key: string) => {
+			this.addCommand({
+				id: `move-file-to-${key}`,
+				name: `Move file to ${key[0].toUpperCase() + key.substring(1)}`,
+				editorCallback: this.moveFileToDestination(value),
+			});
 		});
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.addSettingTab(new MoveWithTagsSettingsTab(this.app, this));
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
+		this.app.vault.on("modify", (file: TAbstractFile) => {
+			if (file instanceof TFile) {
+				setTimeout(() => {
+					const metadata = this.app.metadataCache.getFileCache(file);
+					const tags = metadata?.frontmatter?.tags as string[];
+					const tagSet = new Set(tags);
+					const mapSet = new Set(this.settings.targetMapping.keys());
+					const intersect = new Set(
+						[...tagSet].filter((i) => mapSet.has(i))
+					);
+					if (intersect.size > 1) {
+						new Notice(
+							`There are more than one tags in this file that satisfy the move criteria.`
+						);
+						return;
+					}
+					intersect.forEach((key) => {
+						const dir = this.settings.targetMapping.get(key);
+						if (dir) {
+							this.app.fileManager.renameFile(
+								file,
+								path.join(dir, file.name)
+							);
+							new Notice(`Moved ${file.name} to ${dir}`);
+						}
+					});
+				}, 1000);
+			}
 		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
 
-	onunload() {
-
-	}
+	onunload() {}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			await this.loadData()
+		);
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
-}
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+	moveFileToDestination(directory: string) {
+		return (editor: Editor, view: MarkdownView) => {
+			if (view.file) {
+				this.app.fileManager.renameFile(
+					view.file,
+					path.join(directory, view.file.name)
+				);
+			}
+		};
 	}
 }
 
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+class MoveWithTagsSettingsTab extends PluginSettingTab {
+	plugin: MoveWithTags;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: MoveWithTags) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+			.setName("Setting #1")
+			.setDesc("It's a secret")
+			.addText((text) => text.setPlaceholder("Enter your secret"));
 	}
 }

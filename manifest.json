@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "move-with-tags",
+	"name": "Move with Tags",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "A simple utility to move files to different directories based on user defined directory mappings.",
+	"author": "Taj Singh",
+	"authorUrl": "https://github.com/tjgurwara99",
+	"fundingUrl": "https://github.com/tjgurwara99",
 	"isDesktopOnly": false
 }
