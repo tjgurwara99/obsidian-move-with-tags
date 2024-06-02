@@ -67,6 +67,13 @@ export default class MoveWithTags extends Plugin {
 					intersect.forEach((key) => {
 						const dir = this.settings.targetMapping.get(key);
 						if (dir) {
+							let parent = file.parent;
+							while (parent) {
+								if (parent.name == dir) {
+									return;
+								}
+								parent = parent.parent;
+							}
 							this.app.fileManager.renameFile(
 								file,
 								path.join(dir, file.name)
